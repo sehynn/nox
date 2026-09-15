@@ -156,27 +156,6 @@ Each ticket also needs a small structured block in its description (`depends_on`
 `risk`) so the topological sort, parallelism decision, and risk gate can run without a human in the loop.
 See [`SKILL.md`](./SKILL.md) for the exact format.
 
-## FAQ
-
-**Why anthropomorphize a skill file?** Because every one of Nox's rules maps to a real guardrail, not
-decoration — see "Nox's rules" above. If you'd rather read it as pure mechanics with no character framing,
-[`SKILL.md`](./SKILL.md) is exactly that.
-
-**Isn't this just a prompt?** Yes — that's the point. The value isn't a novel model capability, it's the
-specific set of guardrails an *unattended overnight batch* needs that a one-off "handle this overnight"
-prompt doesn't have by default: adversarial design review, a hard prod-write block, overlap detection run
-twice, and a ceiling that never exceeds a draft PR.
-
-**Why not let Nox merge low-risk PRs automatically too?** Because "PR approval and merging is always a
-human" isn't a rule invented for him — it's just applied consistently, with no risk-tier exception. Low-risk
-still means *unreviewed by a human* the moment the draft PR is opened.
-
-**What if my tickets don't have `depends_on`/`scope`/`dod`/`risk` filled in?** Nox drops them from the
-unattended queue and tells you which ones, rather than guessing. Fill them in and re-run.
-
-**Does it work with issue trackers other than Jira?** The examples use an Atlassian-CLI-style tool, but the
-contract is just "a CLI/API you can script + four fields in the description" — swap in Linear, GitHub
-Issues, or anything else.
 
 ## Contributing
 
