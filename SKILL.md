@@ -67,6 +67,8 @@ Parse each issue's description for the four fields. Build a DAG with `depends_on
 - **If a cycle is found**: report which issues are cycled and **stop**.
 - **Issues missing fields**: dropped per the rule above; continue with the rest.
 
+**`depends_on` and `scope` are self-reported -- cross-check them, don't just trust them.** The DAG above only encodes dependencies the issue author actually wrote down. Separately, compare every pair of queued issues' declared `scope` globs and flag any pair that overlaps (same file/directory reachable from both), *even if neither declares a `depends_on` on the other*. This catches the common real case: two issues look independent because nobody wrote `depends_on`, but they'd both touch the same shared util/type/migration. Carry these flagged pairs into Step 2 -- don't silently drop them, and don't try to resolve them automatically (that's a human call).
+
 ---
 
 ## Step 2: confirm the execution plan (human, at session start)
@@ -74,12 +76,14 @@ Parse each issue's description for the four fields. Build a DAG with `depends_on
 Since this is invoked before someone leaves for the night, a human is still present at this point. Show the processing order, parallel groupings, and risk labels as a table, and get an explicit **"start like this?"** confirmation before entering the unattended loop. ("Unattended" means *after* the start -- the start itself is attended.)
 
 ```markdown
-| Order | Issue | Depends on | Parallel group | Risk |
-|-------|-------|------------|-----------------|------|
-| 1 | FOO-101 | none | solo | none |
-| 2 | FOO-102, FOO-103 | FOO-101 | parallel (2) | none, infra |
-| 3 | FOO-104 | FOO-102 | solo | payment |
+| Order | Issue | Depends on | Parallel group | Risk | Scope overlap |
+|-------|-------|------------|-----------------|------|----------------|
+| 1 | FOO-101 | none | solo | none | -- |
+| 2 | FOO-102, FOO-103 | FOO-101 | parallel (2) | none, infra | -- |
+| 3 | FOO-104 | FOO-102 | solo | payment | ⚠️ overlaps FOO-102 (`src/shared/util.ts`) -- not declared as depends_on |
 ```
+
+A flagged overlap doesn't automatically block the issue -- the human deciding to proceed anyway is a valid outcome (e.g. the overlap turns out to be incidental). But it must be shown, not silently absorbed into "parallel candidate" or "independent."
 
 ---
 
@@ -113,10 +117,14 @@ Have whichever domain expert owns the `scope`'s repo/stack (the same subagent th
 
 > **Separation of judge and author**: the subagent that wrote the design must not be the one that reviews it. Spin up a **separate, freshly-started reviewer subagent** to critique it adversarially. An agent being "skeptical" of its own output doesn't count as independent review.
 
-1. Give the reviewer the design note plus `dod`/`scope`/`risk`, and get a **PASS/FAIL** verdict on whether the approach actually satisfies `dod` and whether it misses edge cases or side effects.
-2. On FAIL, send the feedback back to the design step, revise, and re-review.
-3. **Lock in the design as soon as 2 consecutive PASSes occur** (no need to burn all 10 rounds).
-4. **If 10 rounds pass without 2 consecutive PASSes**, mark the issue **BLOCKED** (reason: "design review inconclusive -- summary of round-N feedback"). Fail-safe instead of looping forever while unattended. As rounds accumulate, summarize the key open issues from prior rounds for the reviewer each time, so it doesn't repeat the same feedback.
+1. Give the reviewer the design note plus `dod`/`scope`/`risk`, and get one of three verdicts:
+   - **PASS** -- the approach satisfies `dod` and doesn't miss edge cases or side effects.
+   - **FAIL** -- it doesn't, but the issue is still a reasonable fit for a one-shot lightweight design note; send feedback back to the design step, revise, and re-review.
+   - **TOO_LARGE** -- once actually designing it, this issue turns out to be bigger or more entangled than its `scope`/`dod` suggested (touches more of the system than one lightweight design note can responsibly cover, or the "small independent change" precondition no longer holds). This is a distinct call from FAIL: FAIL means *this specific design* is wrong; TOO_LARGE means *no design at this weight class* is the right answer for this issue.
+2. On **FAIL**, send the feedback back to the design step, revise, and re-review.
+3. On **TOO_LARGE**, stop immediately -- don't wait for 10 rounds. Mark the issue **ROUTE_TO_PLANNING** (not BLOCKED) with the reviewer's reasoning, and report it as "needs your normal full planning process," not "retry differently."
+4. **Lock in the design as soon as 2 consecutive PASSes occur** (no need to burn all 10 rounds).
+5. **If 10 rounds pass without 2 consecutive PASSes** (and it was never called TOO_LARGE), mark the issue **BLOCKED** (reason: "design review inconclusive -- summary of round-N feedback"). Fail-safe instead of looping forever while unattended. As rounds accumulate, summarize the key open issues from prior rounds for the reviewer each time, so it doesn't repeat the same feedback.
 
 ### 3.5 Hand off implementation
 
@@ -214,6 +222,7 @@ Issues with `risk != none` still go through PR creation and tracker status trans
 | FOO-102 | done | {draft PR link} | in progress | 3 (PASS from round 2) | infra (needs a careful human read) |
 | FOO-103 | done | {draft PR link} | transition failed -- manual needed | 1 | none |
 | FOO-104 | BLOCKED | -- | -- | 10 rounds, never locked in | payment -- reason: {summary of the review feedback} |
+| FOO-105 | ROUTE_TO_PLANNING | -- | -- | stopped at round 2 (TOO_LARGE) | infra -- reason: {reviewer's reasoning for why this exceeds the lightweight path} |
 
 ### Checkpoint results
 - N/M issues succeeded; checkpoint build passed/failed X times
@@ -222,6 +231,7 @@ Issues with `risk != none` still go through PR creation and tracker status trans
 - A human reviews each draft PR, risk-tier first -> promotes to ready -> merges
 - Manually transition any issue with a failed tracker-status update
 - Decide whether to retry any BLOCKED issue after investigating why
+- Send any ROUTE_TO_PLANNING issue through your normal full planning process instead of retrying it here
 ```
 
 ---
@@ -243,6 +253,7 @@ Issues with `risk != none` still go through PR creation and tracker status trans
 | v3 | Added the prod-data safety guardrail: implementation and verification only ever run in local/test environments; prod backfills/cleanup are explicitly out of scope and reported to a human separately. (Prompted by a real incident where "fix the code for future cases" got conflated with "backfill data that already accumulated in prod" for the same issue.) |
 | v4 | Added the post-draft-PR tracker status transition step. Transition failures are reported in the morning summary rather than treated as issue failure. |
 | v5 | Raised the design-review cap from 3 to 10 rounds (the "2 consecutive PASSes to lock in" rule is unchanged -- the last two verdicts must still both be PASS). Reviewers are now given a summary of prior rounds' open issues each round. Raised the limited-parallelism cap from 2 to 4 (same `risk:none` / non-overlapping-scope conditions and "scoped command only, no full build per worktree" safeguard apply -- only the parallelism count increased, based on real-world usage). |
+| v6 | Addressed [#1](https://github.com/sehynn/night-run/issues/1): `depends_on`/`scope` were purely self-reported with no cross-checking. Step 1 now also flags scope-overlapping issue pairs even when no `depends_on` was declared, surfaced to the human in the Step 2 table. Added a third design-review verdict, `TOO_LARGE` (Step 3.4), so an issue that turns out bigger than the lightweight path can handle exits immediately as `ROUTE_TO_PLANNING` instead of burning all 10 rounds and landing in an undifferentiated `BLOCKED`. |
 
 ---
 
