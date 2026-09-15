@@ -125,9 +125,9 @@ actual rules about what he won't do.
 
 ## Install
 
-**Claude Code**: copy [`SKILL.md`](./SKILL.md) into `<your-project>/.claude/skills/night-run/SKILL.md`.
+**Claude Code**: copy [`SKILL.md`](./SKILL.md) into `<your-project>/.claude/skills/nox/SKILL.md`.
 
-**Codex**: copy [`SKILL.md`](./SKILL.md) into `<your-project>/.codex/skills/night-run/SKILL.md`, then add
+**Codex**: copy [`SKILL.md`](./SKILL.md) into `<your-project>/.codex/skills/nox/SKILL.md`, then add
 one line to its frontmatter:
 
 ```yaml

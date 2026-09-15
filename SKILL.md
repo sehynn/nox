@@ -1,9 +1,9 @@
 ---
-name: night-run
-description: "An overnight batch skill that processes 4-8 small, mutually independent issues in a single local session/worktree, in topologically sorted order (limited parallelism, up to 4 at a time). For each issue it repeats: requirements analysis -> design -> design review (up to 10 rounds, needs 2 consecutive PASSes) -> implementation -> implementation verification -> commit -> push -> draft PR -> mark the issue in-progress in your tracker. The ceiling is draft PR creation -- it never marks a PR ready for review, merges, or deploys. Triggers: \"night run\", \"run this overnight\", \"batch process before I leave\", \"unattended overnight run\"."
+name: nox
+description: "An overnight batch skill that processes 4-8 small, mutually independent issues in a single local session/worktree, in topologically sorted order (limited parallelism, up to 4 at a time). For each issue it repeats: requirements analysis -> design -> design review (up to 10 rounds, needs 2 consecutive PASSes) -> implementation -> implementation verification -> commit -> push -> draft PR -> mark the issue in-progress in your tracker. The ceiling is draft PR creation -- it never marks a PR ready for review, merges, or deploys. Triggers: \"nox\", \"run nox\", \"night run\", \"batch process before I leave\", \"unattended overnight run\"."
 ---
 
-# night-run -- overnight batch processing for small, independent issues
+# Nox -- overnight batch processing for small, independent issues
 
 **What it is**: a lightweight batch variant of your normal development flow, meant for issues small enough that a full design-doc/spec process would be overkill.
 **Precondition**: it does *not* require full upfront design artifacts (API schema, ERD, formal implementation plan) the way a "real" feature does. It's for the same kind of small, self-contained change you'd otherwise hand to a single implementation subagent directly.
@@ -21,11 +21,11 @@ description: "An overnight batch skill that processes 4-8 small, mutually indepe
 
 ## Safety guardrail -- prod is read-only, never write
 
-night-run runs unattended overnight, so nobody is there to catch a mistake in real time. The following applies to **every issue, with no exceptions**, regardless of its risk label:
+Nox runs unattended overnight, so nobody is there to catch a mistake in real time. The following applies to **every issue, with no exceptions**, regardless of its risk label:
 
 - **Implementation and implementation-verification default to local/test environments.** If your standard test commands already default to a local/test env, just use them as-is. **Read-only** access to a prod read replica is fine when a step genuinely needs it (e.g. confirming a data condition actually occurs in prod as part of diagnosing the issue) -- but only through whatever read-only path your team already has (replica connection, read-only DB role, etc.), never a direct/writable connection. **Any prod *write* -- direct or via a credential/tunnel that permits writes -- is never allowed, under any circumstances.** If a step seems to require prod write access, **that issue is immediately marked BLOCKED** -- that decision is out of scope for an unattended run.
-- **Backfilling or cleaning up data already sitting in prod is out of scope for night-run**, even if the issue also asks for it -- that's a write, however well-intentioned. If an issue conflates "fix the code so this doesn't happen going forward" with "clean up prod rows that already exist," split it: implement the former, and report the latter back to a human to handle by hand.
-- This mirrors whatever read-only-replica / no-direct-prod-write discipline your team already has for AI-assisted database work -- night-run just enforces the write side of it more strictly, because nobody is watching.
+- **Backfilling or cleaning up data already sitting in prod is out of scope for Nox**, even if the issue also asks for it -- that's a write, however well-intentioned. If an issue conflates "fix the code so this doesn't happen going forward" with "clean up prod rows that already exist," split it: implement the former, and report the latter back to a human to handle by hand.
+- This mirrors whatever read-only-replica / no-direct-prod-write discipline your team already has for AI-assisted database work -- Nox just enforces the write side of it more strictly, because nobody is watching.
 
 ---
 
@@ -40,18 +40,18 @@ Don't invoke this skill if: there are only 1-2 issues, the issues are tightly co
 
 ## Input fields (issue description contract)
 
-night-run only needs a lightweight subset of whatever fields your team's full planning process defines. Each issue's description needs this block for topological sorting, parallelism decisions, and the risk gate to work automatically:
+Nox only needs a lightweight subset of whatever fields your team's full planning process defines. Each issue's description needs this block for topological sorting, parallelism decisions, and the risk gate to work automatically:
 
 ```
-### night-run
+### nox
 - depends_on: [FOO-101, FOO-102] (or "none")
 - scope: backend/src/profile/** (repo + rough path this touches)
 - dod: pnpm lint && pnpm test -- profile.service.spec.ts (a command whose pass/fail is machine-checkable)
 - risk: none | auth | payment | migration | security | infra
 ```
 
-- If any of the four fields is missing, **that issue is dropped from the unattended queue**, and reported back: "{issue key} is missing night-run fields -- skipping. Fill them in and re-run." Never guess the missing value.
-- `risk` is your team's standard risk tiers (typically: auth/authz, payment/billing, DB migration, security/privacy -- adapt to whatever your org already uses) plus one night-run-local addition, `infra` (CI/CD, deploy config, IaC changes). `infra` only exists inside this skill's scope; it doesn't redefine your org's actual risk-tier taxonomy. It exists because night-run's small-issue queue can include CI/deploy changes that don't fit any of the other categories but are still risky in an unattended context.
+- If any of the four fields is missing, **that issue is dropped from the unattended queue**, and reported back: "{issue key} is missing nox fields -- skipping. Fill them in and re-run." Never guess the missing value.
+- `risk` is your team's standard risk tiers (typically: auth/authz, payment/billing, DB migration, security/privacy -- adapt to whatever your org already uses) plus one nox-local addition, `infra` (CI/CD, deploy config, IaC changes). `infra` only exists inside this skill's scope; it doesn't redefine your org's actual risk-tier taxonomy. It exists because Nox's small-issue queue can include CI/deploy changes that don't fit any of the other categories but are still risky in an unattended context.
 
 ---
 
@@ -137,7 +137,7 @@ Pass the finalized design straight to whichever implementation subagent/expert o
 ```
 Task(subagent_type=<backend|mobile|frontend>-expert,
      prompt="Issue={issue-key}+title+design note, scope={scope}, dod={dod}, risk={risk},
-             Note: this is a night-run batch call -- skip the full test/e2e suite,
+             Note: this is a Nox batch call -- skip the full test/e2e suite,
              only run lint + typecheck + the scoped test from dod, and return the result
              (the full suite runs separately at the Step 4 checkpoint)")
 ```
@@ -146,7 +146,7 @@ Task(subagent_type=<backend|mobile|frontend>-expert,
 
 Run whatever command is specified in the `dod` field (scoped lint + typecheck + targeted test) and confirm it passes.
 
-> **Deliberate difference from your normal "done" checkpoint**: a normal feature-done checkpoint usually runs lint + the full test suite + e2e. night-run only runs the **scoped `dod` command** per issue, because running the full suite per issue is exactly what caused the 40-minute-build failure mode mentioned above. The full suite only runs at the Step 4 checkpoint.
+> **Deliberate difference from your normal "done" checkpoint**: a normal feature-done checkpoint usually runs lint + the full test suite + e2e. Nox only runs the **scoped `dod` command** per issue, because running the full suite per issue is exactly what caused the 40-minute-build failure mode mentioned above. The full suite only runs at the Step 4 checkpoint.
 
 - **On failure** (`dod` doesn't pass, or the implementing subagent reports a blocker): **mark only that issue BLOCKED**, record why, and clean up the incomplete change (`git stash` it or leave the branch and return to `base`) so it can't bleed into the next issue's work. Keep the queue going -- don't stop everything.
 
@@ -157,9 +157,9 @@ git add -A && git commit -m "{type}: {issue-key} {summary}"   # match your norma
 git push -u origin HEAD
 ```
 
-Then invoke your team's normal PR-creation flow with **`gh pr create --draft`** to open it as a draft, chaining into your automated PR-review flow if you have one. **Never undraft (mark ready for review) or merge, under any circumstances** -- draft PR creation is this issue's final night-run output (undraft/merge/deploy is tomorrow's human's job). If `risk != none`, flag it via label/comment (see Step 5). Return to `base` afterward.
+Then invoke your team's normal PR-creation flow with **`gh pr create --draft`** to open it as a draft, chaining into your automated PR-review flow if you have one. **Never undraft (mark ready for review) or merge, under any circumstances** -- draft PR creation is this issue's final Nox output (undraft/merge/deploy is tomorrow's human's job). If `risk != none`, flag it via label/comment (see Step 5). Return to `base` afterward.
 
-> **Why draft**: night-run output is something no human has looked at yet. A normal PR immediately triggers CI/reviewer notifications or reads as "ready for review." Draft makes it unambiguous: "pending morning review," until a human explicitly promotes it.
+> **Why draft**: Nox output is something no human has looked at yet. A normal PR immediately triggers CI/reviewer notifications or reads as "ready for review." Draft makes it unambiguous: "pending morning review," until a human explicitly promotes it.
 
 ### 3.8 Mark the issue in-progress in your tracker
 
@@ -185,19 +185,19 @@ Only issues grouped in Step 1 as "no `depends_on` among each other + non-overlap
 **Step B -- implement in parallel, one worktree per surviving candidate.** Create a branch and worktree per issue and run 3.5 (implementation handoff) through 3.8 (tracker transition) concurrently:
 
 ```bash
-git worktree add -b {type}/{issue-key-a}/{short-slug} ../night-run-{issue-key-a} {base-branch}
-git worktree add -b {type}/{issue-key-b}/{short-slug} ../night-run-{issue-key-b} {base-branch}
-git worktree add -b {type}/{issue-key-c}/{short-slug} ../night-run-{issue-key-c} {base-branch}
-git worktree add -b {type}/{issue-key-d}/{short-slug} ../night-run-{issue-key-d} {base-branch}
+git worktree add -b {type}/{issue-key-a}/{short-slug} ../nox-{issue-key-a} {base-branch}
+git worktree add -b {type}/{issue-key-b}/{short-slug} ../nox-{issue-key-b} {base-branch}
+git worktree add -b {type}/{issue-key-c}/{short-slug} ../nox-{issue-key-c} {base-branch}
+git worktree add -b {type}/{issue-key-d}/{short-slug} ../nox-{issue-key-d} {base-branch}
 ```
 
 **Each worktree still only runs the scoped `dod` command in 3.6** (full builds are still forbidden -- the actual root cause of the CPU-exhaustion failure mode was "running full builds in parallel," not "worktrees" per se, so this constraint stays no matter how many you run in parallel). `pnpm install` (or equivalent) may be needed per worktree, but a content-addressed package store makes repeat installs cheap. Clean up immediately after each finishes:
 
 ```bash
-git worktree remove ../night-run-{issue-key-a}
-git worktree remove ../night-run-{issue-key-b}
-git worktree remove ../night-run-{issue-key-c}
-git worktree remove ../night-run-{issue-key-d}
+git worktree remove ../nox-{issue-key-a}
+git worktree remove ../nox-{issue-key-b}
+git worktree remove ../nox-{issue-key-c}
+git worktree remove ../nox-{issue-key-d}
 ```
 
 If any issue in the group turns out to have `risk != none` mid-flight, drop it from the parallel group and fall back to sequential.
@@ -219,14 +219,14 @@ pnpm lint && pnpm test && pnpm test:e2e   # use whatever your repo's real full-v
 
 ## Step 5: risk-tier issues
 
-Issues with `risk != none` still go through PR creation and tracker status transition exactly as in 3.7-3.8, but get flagged via label/comment. They are never candidates for unattended auto-merge -- this isn't a night-run-specific rule, it's just "PR approval and merging is always a human," applied without exception.
+Issues with `risk != none` still go through PR creation and tracker status transition exactly as in 3.7-3.8, but get flagged via label/comment. They are never candidates for unattended auto-merge -- this isn't a Nox-specific rule, it's just "PR approval and merging is always a human," applied without exception.
 
 ---
 
 ## Step 6: morning report (final output of the session)
 
 ```markdown
-## night-run summary -- {date}
+## Nox's shift report -- {date}
 
 | Issue | Status | Draft PR | Tracker transition | Design review rounds | Risk |
 |-------|--------|----------|----------------------|------------------------|------|
@@ -265,8 +265,8 @@ Issues with `risk != none` still go through PR creation and tracker status trans
 | v3 | Added the prod-data safety guardrail: implementation and verification only ever run in local/test environments; prod backfills/cleanup are explicitly out of scope and reported to a human separately. (Prompted by a real incident where "fix the code for future cases" got conflated with "backfill data that already accumulated in prod" for the same issue.) |
 | v4 | Added the post-draft-PR tracker status transition step. Transition failures are reported in the morning summary rather than treated as issue failure. |
 | v5 | Raised the design-review cap from 3 to 10 rounds (the "2 consecutive PASSes to lock in" rule is unchanged -- the last two verdicts must still both be PASS). Reviewers are now given a summary of prior rounds' open issues each round. Raised the limited-parallelism cap from 2 to 4 (same `risk:none` / non-overlapping-scope conditions and "scoped command only, no full build per worktree" safeguard apply -- only the parallelism count increased, based on real-world usage). |
-| v6 | Addressed [#1](https://github.com/sehynn/night-run/issues/1): `depends_on`/`scope` were purely self-reported with no cross-checking. Step 1 now flags scope-overlapping issue pairs even when no `depends_on` was declared, and automatically downgrades a flagged pair from parallel to sequential by default (a human can still override at Step 2) rather than just displaying a warning. Since that check can only compare *declared* `scope`, 3.9 now also runs a second, design-time cross-check for the parallel path: design + design review happen for every parallel candidate first, without a worktree, and candidates whose real touched-file lists overlap get bumped to sequential before any worktree is opened. Added a third design-review verdict, `TOO_LARGE` (Step 3.4), so an issue that turns out bigger than the lightweight path can handle exits immediately as `ROUTE_TO_PLANNING` instead of burning all 10 rounds and landing in an undifferentiated `BLOCKED`. |
-| v7 | Addressed [#3](https://github.com/sehynn/night-run/issues/3): the safety guardrail banned all prod access, even reads, which was stricter than most teams' actual policy (read-only replica fine, writes forbidden) and made routine diagnostic reads get BLOCKED for no safety benefit. Reframed as "prod is read-only, never write" -- read-only replica access is allowed when a step genuinely needs it; any write, direct or via a writable credential/tunnel, stays absolutely forbidden with no exceptions. |
+| v6 | Addressed [#1](https://github.com/sehynn/nox/issues/1): `depends_on`/`scope` were purely self-reported with no cross-checking. Step 1 now flags scope-overlapping issue pairs even when no `depends_on` was declared, and automatically downgrades a flagged pair from parallel to sequential by default (a human can still override at Step 2) rather than just displaying a warning. Since that check can only compare *declared* `scope`, 3.9 now also runs a second, design-time cross-check for the parallel path: design + design review happen for every parallel candidate first, without a worktree, and candidates whose real touched-file lists overlap get bumped to sequential before any worktree is opened. Added a third design-review verdict, `TOO_LARGE` (Step 3.4), so an issue that turns out bigger than the lightweight path can handle exits immediately as `ROUTE_TO_PLANNING` instead of burning all 10 rounds and landing in an undifferentiated `BLOCKED`. |
+| v7 | Addressed [#3](https://github.com/sehynn/nox/issues/3): the safety guardrail banned all prod access, even reads, which was stricter than most teams' actual policy (read-only replica fine, writes forbidden) and made routine diagnostic reads get BLOCKED for no safety benefit. Reframed as "prod is read-only, never write" -- read-only replica access is allowed when a step genuinely needs it; any write, direct or via a writable credential/tunnel, stays absolutely forbidden with no exceptions. |
 
 ---
 
@@ -275,7 +275,7 @@ Issues with `risk != none` still go through PR creation and tracker status trans
 This skill assumes a few things you'll need to map onto your own setup:
 
 - **An issue tracker with a CLI or API** you can script against (the examples use an Atlassian-CLI-style tool; swap in whatever fits -- Linear, GitHub Issues, etc.).
-- **Domain implementation subagents/experts** per stack (backend/mobile/frontend, or whatever split makes sense for your codebase) -- night-run delegates design and implementation to these rather than doing it inline.
+- **Domain implementation subagents/experts** per stack (backend/mobile/frontend, or whatever split makes sense for your codebase) -- Nox delegates design and implementation to these rather than doing it inline.
 - **An existing PR-creation step/skill** that follows your team's branch/commit/PR-template conventions, ideally with `--draft` support.
-- **Your own risk-tier taxonomy** (auth, payment, migration, security/privacy are common defaults) -- night-run just adds one local `infra` tag on top for its own gating purposes.
-- **Whatever prod-safety discipline you already enforce** for AI-assisted work (read-only replicas, no direct prod writes, etc.) -- night-run's guardrail assumes that baseline exists and makes the no-write side of it non-negotiable, with no risk-label exceptions, for the unattended case.
+- **Your own risk-tier taxonomy** (auth, payment, migration, security/privacy are common defaults) -- Nox just adds one local `infra` tag on top for its own gating purposes.
+- **Whatever prod-safety discipline you already enforce** for AI-assisted work (read-only replicas, no direct prod writes, etc.) -- Nox's guardrail assumes that baseline exists and makes the no-write side of it non-negotiable, with no risk-label exceptions, for the unattended case.
