@@ -401,7 +401,7 @@ Nox will not:
 * force an oversized ticket through implementation,
 * or parallelize tasks with overlapping scopes.
 
-These limits are part of the workflow, not recommendations left to individual prompts. That said, every one of them is still an instruction to the agent, not something the prompt itself can force — see **Structural backstop** in [`SKILL.md`](./SKILL.md) for the one part of that gap with an actual fix (native GitHub branch protection, for repos with a real second reviewer available) and an honest statement of the part that doesn't (a solo maintainer running Nox under their own account).
+These limits are part of the workflow, not recommendations left to individual prompts. That said, every one of them is still an instruction to the agent, not something the prompt itself can force — see **Structural backstop** in [`SKILL.md`](./SKILL.md) for the actual fix: run Nox under a separate GitHub identity (not your own account) and let native branch protection do the enforcing. Works for teams and solo maintainers alike — the earlier version of this section wrongly concluded solo use had no fix at all.
 
 ---
 
