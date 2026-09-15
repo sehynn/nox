@@ -1,13 +1,13 @@
 <div align="center">
 
-# night-run
+# Nox
 
-<img src="./mascot.png" alt="The night shift" width="220" />
+<img src="./mascot.png" alt="Nox" width="220" />
 
-### You go home. He clocks in.
+### Meet Nox, your night-shift developer.
 
-He works through your tickets all night — designs each one, gets it reviewed, builds it, tests it.
-By morning: draft PRs on your desk. He never merges. That's not a limitation bolted on afterward.
+Go to sleep. Nox takes the night shift — designs each ticket, gets it reviewed, builds it, tests it.
+By morning: draft PRs on your desk. Nox never merges. That's not a limitation bolted on afterward.
 That's just where his shift ends.
 
 *An unattended coding agent workflow. Works with Claude Code and Codex today — the pattern isn't tied to
@@ -22,15 +22,15 @@ either.*
 
 ---
 
-## Who he is
+## Who Nox is
 
-No name, no small talk. Hoodie, badge, a gas-station coffee that's gone cold twice already. He's been
-doing the night shift long enough to know exactly what's not his to decide. Hand him a stack of tickets
-before you leave and he won't ask what an ambiguous one "really" means — there's no one to ask at 3am, so
-he sets it down with a note instead of guessing. He doesn't touch anything above his clearance. And when
-he's done, he doesn't let himself in. He leaves the draft on your desk and waits.
+No small talk. Hoodie, badge, a gas-station coffee that's gone cold twice already. Nox has been doing the
+night shift long enough to know exactly what's not his to decide. Hand him a stack of tickets before you
+leave and he won't ask what an ambiguous one "really" means — there's no one to ask at 3am, so he sets it
+down with a note instead of guessing. He doesn't touch anything above his clearance. And when he's done,
+he doesn't let himself in. He leaves the draft on your desk and waits.
 
-## His rules
+## Nox's rules
 
 Every one of these is a real guardrail, not flavor text — the parenthetical is exactly what it maps to.
 
@@ -56,12 +56,12 @@ Every one of these is a real guardrail, not flavor text — the parenthetical is
 - **He answers to a fresh set of eyes, not his own.** Whoever wrote the approach isn't the one who signs off
   on it. *(a separate reviewer subagent has to actually PASS it, twice in a row, before he touches code)*
 
-## A night in his shift
+## A night with Nox
 
 **6:03 PM** — you hand him five tickets on your way out. He checks what depends on what and shows you the
 order before you're even out the door.
 
-**6:04 PM** — you're gone. He clocks in.
+**6:04 PM** — you're gone. Nox clocks in.
 
 `FOO-101` — reads it, sketches an approach, gets it checked by someone else, builds it, tests it, opens the
 draft, marks it in progress. Next.
@@ -78,7 +78,7 @@ daylight.
 **9:02 AM** — you're back.
 
 ```markdown
-## night-run summary — 2026-09-16
+## Nox's shift report — 2026-09-16
 
 | Issue | Status | Draft PR | Tracker | Design rounds | Risk |
 |-------|--------|----------|---------|----------------|------|
@@ -94,7 +94,7 @@ daylight.
 3 drafts, reviewed and tested, waiting. 1 set aside with a reason. 1 flagged as too big for a night's work.
 0 merged without you. That's the whole pitch.
 
-## Why he exists
+## Why Nox exists
 
 You've got 6 small, unrelated tickets. None of them deserve a design doc. Each one is the kind of thing
 you'd knock out in twenty minutes if you weren't already walking out the door. So here's what actually
@@ -106,15 +106,15 @@ of these overnight" has a way of turning into one of two bad mornings —
 - **the fast version**: it opened five worktrees, ran five full builds in parallel, pegged your CPU for 40
   minutes, and two of them silently touched the same file
 
-He's what's actually needed instead — one ticket at a time (or a carefully checked few in parallel), each
+Nox is what's actually needed instead — one ticket at a time (or a carefully checked few in parallel), each
 one designed and adversarially reviewed *before* a line of code is written, and capped at a draft PR.
 
-## Why hand it to him, not just prompt an agent overnight
+## Why hand it to Nox, not just prompt an agent overnight
 
 There's a difference between telling an agent "handle it overnight" and handing the work to someone with
 actual rules about what he won't do.
 
-| | Ad hoc overnight prompt | night-run |
+| | Ad hoc overnight prompt | Nox |
 |---|---|---|
 | Two "independent" tickets touch the same file | found whenever someone notices | cross-checked before they're ever run in parallel — a real overlap **auto-downgrades them to sequential**, no human has to catch it |
 | A ticket turns out way bigger than it looked | agent grinds through it anyway, diff balloons | a separate reviewer subagent can call it **`TOO_LARGE`** and route it back to you, instead of pretending it fit |
@@ -138,7 +138,7 @@ That's the only difference Codex needs.
 
 ## Before you use it
 
-night-run assumes a few things about your setup — see **"Adapting this to your team"** at the bottom of
+Nox assumes a few things about your setup — see **"Adapting this to your team"** at the bottom of
 [`SKILL.md`](./SKILL.md) for the full list, but in short:
 
 - an issue tracker with a scriptable CLI/API (examples use an Atlassian-CLI-style tool; swap in Linear,
@@ -146,11 +146,11 @@ night-run assumes a few things about your setup — see **"Adapting this to your
 - domain implementation subagents/experts per stack (backend/mobile/frontend, or your own split),
 - an existing PR-creation step that follows your team's branch/commit/PR conventions and supports
   `--draft`,
-- your own risk-tier taxonomy (auth, payment, migration, security/privacy are common defaults — night-run
-  adds one local `infra` tag on top),
+- your own risk-tier taxonomy (auth, payment, migration, security/privacy are common defaults — Nox adds
+  one local `infra` tag on top),
 - whatever prod-safety discipline you already enforce for AI-assisted work (read-only replicas, no direct
-  prod writes) — night-run's guardrail assumes that baseline and makes the no-write side of it
-  non-negotiable for the unattended case.
+  prod writes) — Nox's guardrail assumes that baseline and makes the no-write side of it non-negotiable for
+  the unattended case.
 
 Each ticket also needs a small structured block in its description (`depends_on` / `scope` / `dod` /
 `risk`) so the topological sort, parallelism decision, and risk gate can run without a human in the loop.
@@ -158,8 +158,8 @@ See [`SKILL.md`](./SKILL.md) for the exact format.
 
 ## FAQ
 
-**Why anthropomorphize a skill file?** Because every one of his rules maps to a real guardrail, not
-decoration — see "His rules" above. If you'd rather read it as pure mechanics with no character framing,
+**Why anthropomorphize a skill file?** Because every one of Nox's rules maps to a real guardrail, not
+decoration — see "Nox's rules" above. If you'd rather read it as pure mechanics with no character framing,
 [`SKILL.md`](./SKILL.md) is exactly that.
 
 **Isn't this just a prompt?** Yes — that's the point. The value isn't a novel model capability, it's the
@@ -167,11 +167,11 @@ specific set of guardrails an *unattended overnight batch* needs that a one-off 
 prompt doesn't have by default: adversarial design review, a hard prod-write block, overlap detection run
 twice, and a ceiling that never exceeds a draft PR.
 
-**Why not let it merge low-risk PRs automatically too?** Because "PR approval and merging is always a
-human" isn't a rule this skill invented — it's just applied consistently, with no risk-tier exception.
-Low-risk still means *unreviewed by a human* the moment the draft PR is opened.
+**Why not let Nox merge low-risk PRs automatically too?** Because "PR approval and merging is always a
+human" isn't a rule invented for him — it's just applied consistently, with no risk-tier exception. Low-risk
+still means *unreviewed by a human* the moment the draft PR is opened.
 
-**What if my tickets don't have `depends_on`/`scope`/`dod`/`risk` filled in?** He drops them from the
+**What if my tickets don't have `depends_on`/`scope`/`dod`/`risk` filled in?** Nox drops them from the
 unattended queue and tells you which ones, rather than guessing. Fill them in and re-run.
 
 **Does it work with issue trackers other than Jira?** The examples use an Atlassian-CLI-style tool, but the
@@ -181,8 +181,8 @@ Issues, or anything else.
 ## Contributing
 
 Issues and PRs welcome — see [open issues](../../issues) for known gaps (scope-verification edge cases,
-tracker-agnostic examples, more). If he saved you a morning of merge-conflict archaeology, a star helps the
-next person find him before their own 3am build catches fire.
+tracker-agnostic examples, more). If Nox saved you a morning of merge-conflict archaeology, a star helps
+the next person find him before their own 3am build catches fire.
 
 ## License
 
