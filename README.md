@@ -40,6 +40,12 @@ note for daylight.
 **9:02 AM** — 3 draft PRs waiting, reviewed and tested. 1 blocked with a reason. 1 sent back to planning.
 0 merged without you.
 
+<p align="center">
+  <img src="./demo.gif" alt="A real Nox run: 5 tickets in, 3 draft PRs + 1 blocked + 1 routed to planning out" width="700" />
+</p>
+
+<p align="center"><sub>Not a mockup — a real run against <a href="https://github.com/sehynn/nox-demo">sehynn/nox-demo</a>. Every line traces to a real issue, design-review round, and draft PR: <a href="https://github.com/sehynn/nox-demo/pull/6">#6</a>, <a href="https://github.com/sehynn/nox-demo/pull/7">#7</a>, <a href="https://github.com/sehynn/nox-demo/pull/8">#8</a>, plus <a href="https://github.com/sehynn/nox-demo/issues/4">#4 (BLOCKED)</a> and <a href="https://github.com/sehynn/nox-demo/issues/5">#5 (ROUTE_TO_PLANNING)</a>.</sub></p>
+
 ---
 
 ## What Nox does
@@ -171,35 +177,47 @@ For every ticket, Nox:
 
 ## Example run
 
-At the start of a run, Nox receives five tickets:
+This is a real run, not a mockup — every issue and PR below is live on
+[sehynn/nox-demo](https://github.com/sehynn/nox-demo). At the start of the run, Nox received five tickets:
 
 ```text
-FOO-101
-FOO-102
-FOO-103
-FOO-104
-FOO-105
+#1  Add a truncate(str, maxLen) function
+#2  Add a slugify(str) function
+#3  Add a capitalize(str) function
+#4  Fix the date formatting bug in formatDate
+#5  Add a full plugin system for string transformers
 ```
 
 During execution:
 
-* `FOO-101` completes successfully and produces draft PR `#421`.
-* `FOO-102` and `FOO-103` appear independent, but both may modify the same file. Nox changes their execution mode from parallel to sequential.
-* `FOO-104` remains ambiguous after repeated design reviews. It is marked `BLOCKED` with an explanation.
-* `FOO-105` is substantially larger than described. It is returned as `ROUTE_TO_PLANNING`.
+* `#1` (truncate) failed design review twice — the first two approaches let the output exceed `maxLen`
+  once the `"..."` suffix was appended. The third revision fixed it and passed twice in a row. Implemented,
+  tested (6/6), draft PR [`#7`](https://github.com/sehynn/nox-demo/pull/7).
+* `#2` (slugify) and `#3` (capitalize) declared non-overlapping scope and no dependency on each other — but
+  once actually designed, both turned out to touch `src/index.js` to add their export. Nox caught this at
+  the design-time cross-check and ran them one after another instead of in parallel. Both completed:
+  [`#6`](https://github.com/sehynn/nox-demo/pull/6) and [`#8`](https://github.com/sehynn/nox-demo/pull/8).
+  A checkpoint-build merge of both branches together produced a real conflict on `src/index.js`, as
+  expected — left for a human to resolve, not something Nox resolves on its own.
+* `#4` asked to fix a bug in `formatDate` — a function that doesn't exist anywhere in the repo. Nox didn't
+  invent a fix for code that isn't there; marked [`BLOCKED`](https://github.com/sehynn/nox-demo/issues/4)
+  with the reason.
+* `#5` asked for a full plugin system (loader, registry, CLI, config format) in a 4-function utility
+  package. Independent review called it `TOO_LARGE` and routed it back rather than forcing it through:
+  [`ROUTE_TO_PLANNING`](https://github.com/sehynn/nox-demo/issues/5).
 
-The completed run produces a report like this:
+The completed run produced a report like this:
 
 ```markdown
-## Nox's shift report — 2026-09-16
+## Nox's shift report — 2026-09-15
 
-| Issue   | Result            | Draft PR | Tracker     | Design review | Risk    |
-|---------|-------------------|----------|-------------|----------------|---------|
-| FOO-101 | DONE              | #421     | In progress | PASS ×2        | None    |
-| FOO-102 | DONE              | #422     | In progress | PASS ×2        | Infra   |
-| FOO-103 | DONE              | #423     | In progress | PASS ×2        | None    |
-| FOO-104 | BLOCKED           | —        | Unchanged   | Failed         | Payment |
-| FOO-105 | ROUTE_TO_PLANNING | —        | Unchanged   | TOO_LARGE      | Infra   |
+| Issue | Result            | Draft PR | Tracker         | Design review     | Risk |
+|-------|-------------------|----------|------------------|--------------------|------|
+| #1    | DONE              | #7       | in-progress      | FAIL, FAIL, PASS×2 | none |
+| #2    | DONE              | #6       | in-progress      | PASS ×2            | none |
+| #3    | DONE              | #8       | in-progress      | PASS ×2            | none |
+| #4    | BLOCKED           | —        | nox-blocked      | n/a                | none |
+| #5    | ROUTE_TO_PLANNING | —        | nox-route-to-planning | TOO_LARGE     | none |
 
 Completed: 3/5
 Blocked: 1/5
