@@ -337,16 +337,10 @@ Then invoke the skill from Claude Code.
 Copy [`SKILL.md`](./SKILL.md) into:
 
 ```text
-<your-project>/.codex/skills/nox/SKILL.md
+<your-project>/.agents/skills/nox/SKILL.md
 ```
 
-Add the following field to the skill frontmatter:
-
-```yaml
-codex_type: skill
-```
-
-No other workflow changes are required specifically for Codex.
+No frontmatter changes needed — Codex only requires the `name` and `description` fields this file already has.
 
 ---
 
