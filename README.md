@@ -227,6 +227,14 @@ Merged automatically: 0
 
 The report shows what was completed, what needs attention, and which decisions remain with you.
 
+**Parallel execution, also for real:** two more tickets were added to the same demo repo afterward —
+[`#9`](https://github.com/sehynn/nox-demo/issues/9) (`isPalindrome`) and
+[`#10`](https://github.com/sehynn/nox-demo/issues/10) (`wordCount`) — with no dependency and no scope
+overlap between them, declared or real. This pair actually ran in separate `git worktree`s at the same
+time instead of falling back to the sequential default, producing draft PRs
+[`#11`](https://github.com/sehynn/nox-demo/pull/11) and
+[`#12`](https://github.com/sehynn/nox-demo/pull/12) concurrently.
+
 ---
 
 ## Nox vs. an ad hoc overnight prompt
