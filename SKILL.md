@@ -67,7 +67,11 @@ Parse each issue's description for the four fields. Build a DAG with `depends_on
 - **If a cycle is found**: report which issues are cycled and **stop**.
 - **Issues missing fields**: dropped per the rule above; continue with the rest.
 
-**`depends_on` and `scope` are self-reported -- cross-check them, don't just trust them.** The DAG above only encodes dependencies the issue author actually wrote down. Separately, compare every pair of queued issues' declared `scope` globs and flag any pair that overlaps (same file/directory reachable from both), *even if neither declares a `depends_on` on the other*. This catches the common real case: two issues look independent because nobody wrote `depends_on`, but they'd both touch the same shared util/type/migration. Carry these flagged pairs into Step 2 -- don't silently drop them, and don't try to resolve them automatically (that's a human call).
+**`depends_on` and `scope` are self-reported -- cross-check them, don't just trust them.** The DAG above only encodes dependencies the issue author actually wrote down. Separately, compare every pair of queued issues' declared `scope` globs and flag any pair that overlaps (same file/directory reachable from both), *even if neither declares a `depends_on` on the other*. This catches the common real case: two issues look independent because nobody wrote `depends_on`, but they'd both touch the same shared util/type/migration.
+
+This check is necessarily coarse: it can only compare what each issue's author *declared* in `scope`, not what the issue will actually touch. It can't catch an issue whose real diff reaches outside its declared `scope`. That gap is closed later, at the point where it actually matters -- see the design-time re-check in 3.9, which compares each issue's *actual* touched-file list (once a design exists) instead of the self-reported glob.
+
+Any pair flagged here that was about to land in the same parallel group (3.9) is **automatically downgraded to sequential** -- this isn't left as a warning for a human to act on later, since silently running two issues that touch the same file concurrently, unattended, is exactly the failure mode worth preventing by default. A human can still put them back in the same parallel group at the Step 2 confirmation if they judge the overlap incidental (e.g. both just import the same read-only constant). Pairs with no shared parallel group are still reported, since even sequential issues touching the same file is useful for a human to know going in, but no automatic action is taken on them.
 
 ---
 
@@ -79,11 +83,11 @@ Since this is invoked before someone leaves for the night, a human is still pres
 | Order | Issue | Depends on | Parallel group | Risk | Scope overlap |
 |-------|-------|------------|-----------------|------|----------------|
 | 1 | FOO-101 | none | solo | none | -- |
-| 2 | FOO-102, FOO-103 | FOO-101 | parallel (2) | none, infra | -- |
-| 3 | FOO-104 | FOO-102 | solo | payment | ⚠️ overlaps FOO-102 (`src/shared/util.ts`) -- not declared as depends_on |
+| 2 | FOO-102, FOO-103 | FOO-101 | sequential (auto-downgraded from parallel) | none, infra | ⚠️ FOO-102 & FOO-103 both declare `src/shared/util.ts` in `scope` -- neither lists a `depends_on` on the other |
+| 3 | FOO-104 | FOO-102 | solo | payment | -- |
 ```
 
-A flagged overlap doesn't automatically block the issue -- the human deciding to proceed anyway is a valid outcome (e.g. the overlap turns out to be incidental). But it must be shown, not silently absorbed into "parallel candidate" or "independent."
+FOO-102 and FOO-103 looked independent (no `depends_on` between them) and were headed for the same parallel group -- exactly the case #1 was about. Because their declared `scope` overlaps, they were automatically downgraded to sequential before this table was even shown. A human can still force them back into the same parallel group here if the overlap looks incidental (e.g. both just import the same read-only constant); the point is that it can't happen silently by default.
 
 ---
 
@@ -170,13 +174,21 @@ yourtracker issue transition {issue-key} --status "In Progress"
 
 ### 3.9 Limited parallelism (up to 4)
 
-Only issues grouped in Step 1 as "no `depends_on` among each other + non-overlapping `scope` + all `risk: none`" are parallel candidates (up to 4 at once). Only in this case do you run the full 3.1-3.8 loop for each, concurrently, in its own worktree.
+Only issues grouped in Step 1 as "no `depends_on` among each other + non-overlapping declared `scope` + all `risk: none`" are parallel candidates (up to 4 at once) -- and even then, only after clearing a second check below. Step 1's overlap check is coarse: it can only compare what each issue's author *declared*, not what the issue actually turns out to touch.
+
+**Step A -- design and review first, sequentially, no worktree yet.** For every remaining candidate in the group, run 3.2 (requirements analysis), 3.3 (design), and 3.4 (design review) one at a time, in the main session. None of this touches code, so none of it needs a worktree. Each surviving design note already lists the real files/functions it touches (per 3.3) -- cross-check that actual list between every pair of candidates still in the group, not just their declared `scope`.
+
+- **If a pair's real touched files overlap** (even though their declared `scope` didn't), drop the later one (by queue order) from the parallel group and fall back to sequential for it. This is precisely the "`scope` was under-declared" case Step 1 can't see, since Step 1 only had the author's claim to go on -- this second check uses what the design step actually found instead. Record the reason for the Step 6 report, e.g. "downgraded to sequential -- design revealed it also touches `src/shared/util.ts`, not listed in `scope`."
+- Any candidate that gets a `TOO_LARGE` verdict during 3.4 exits here as `ROUTE_TO_PLANNING`, same as it would sequentially -- it never reaches Step B, so no worktree is wasted on it.
+- Everything still standing after Step A proceeds to Step B, together.
+
+**Step B -- implement in parallel, one worktree per surviving candidate.** Create a branch and worktree per issue and run 3.5 (implementation handoff) through 3.8 (tracker transition) concurrently:
 
 ```bash
-git worktree add ../night-run-{issue-key-a} {branch-a}
-git worktree add ../night-run-{issue-key-b} {branch-b}
-git worktree add ../night-run-{issue-key-c} {branch-c}
-git worktree add ../night-run-{issue-key-d} {branch-d}
+git worktree add -b {type}/{issue-key-a}/{short-slug} ../night-run-{issue-key-a} {base-branch}
+git worktree add -b {type}/{issue-key-b}/{short-slug} ../night-run-{issue-key-b} {base-branch}
+git worktree add -b {type}/{issue-key-c}/{short-slug} ../night-run-{issue-key-c} {base-branch}
+git worktree add -b {type}/{issue-key-d}/{short-slug} ../night-run-{issue-key-d} {base-branch}
 ```
 
 **Each worktree still only runs the scoped `dod` command in 3.6** (full builds are still forbidden -- the actual root cause of the CPU-exhaustion failure mode was "running full builds in parallel," not "worktrees" per se, so this constraint stays no matter how many you run in parallel). `pnpm install` (or equivalent) may be needed per worktree, but a content-addressed package store makes repeat installs cheap. Clean up immediately after each finishes:
@@ -188,7 +200,7 @@ git worktree remove ../night-run-{issue-key-c}
 git worktree remove ../night-run-{issue-key-d}
 ```
 
-If any issue in the group turns out to have `risk != none` or overlapping scope, drop it from the parallel group and fall back to sequential.
+If any issue in the group turns out to have `risk != none` mid-flight, drop it from the parallel group and fall back to sequential.
 
 ---
 
@@ -253,7 +265,7 @@ Issues with `risk != none` still go through PR creation and tracker status trans
 | v3 | Added the prod-data safety guardrail: implementation and verification only ever run in local/test environments; prod backfills/cleanup are explicitly out of scope and reported to a human separately. (Prompted by a real incident where "fix the code for future cases" got conflated with "backfill data that already accumulated in prod" for the same issue.) |
 | v4 | Added the post-draft-PR tracker status transition step. Transition failures are reported in the morning summary rather than treated as issue failure. |
 | v5 | Raised the design-review cap from 3 to 10 rounds (the "2 consecutive PASSes to lock in" rule is unchanged -- the last two verdicts must still both be PASS). Reviewers are now given a summary of prior rounds' open issues each round. Raised the limited-parallelism cap from 2 to 4 (same `risk:none` / non-overlapping-scope conditions and "scoped command only, no full build per worktree" safeguard apply -- only the parallelism count increased, based on real-world usage). |
-| v6 | Addressed [#1](https://github.com/sehynn/night-run/issues/1): `depends_on`/`scope` were purely self-reported with no cross-checking. Step 1 now also flags scope-overlapping issue pairs even when no `depends_on` was declared, surfaced to the human in the Step 2 table. Added a third design-review verdict, `TOO_LARGE` (Step 3.4), so an issue that turns out bigger than the lightweight path can handle exits immediately as `ROUTE_TO_PLANNING` instead of burning all 10 rounds and landing in an undifferentiated `BLOCKED`. |
+| v6 | Addressed [#1](https://github.com/sehynn/night-run/issues/1): `depends_on`/`scope` were purely self-reported with no cross-checking. Step 1 now flags scope-overlapping issue pairs even when no `depends_on` was declared, and automatically downgrades a flagged pair from parallel to sequential by default (a human can still override at Step 2) rather than just displaying a warning. Since that check can only compare *declared* `scope`, 3.9 now also runs a second, design-time cross-check for the parallel path: design + design review happen for every parallel candidate first, without a worktree, and candidates whose real touched-file lists overlap get bumped to sequential before any worktree is opened. Added a third design-review verdict, `TOO_LARGE` (Step 3.4), so an issue that turns out bigger than the lightweight path can handle exits immediately as `ROUTE_TO_PLANNING` instead of burning all 10 rounds and landing in an undifferentiated `BLOCKED`. |
 
 ---
 
