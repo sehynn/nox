@@ -2,7 +2,17 @@
 
 # night-run
 
-**Hand off a stack of small, boring tickets before you leave. Come back to draft PRs — not a merge-conflict crime scene.**
+<!-- mascot: drop mascot.png (square, transparent background) at the repo root and this will render -->
+<img src="./mascot.png" alt="The night shift" width="220" />
+
+### You go home. He clocks in.
+
+He works through your tickets all night — designs each one, gets it reviewed, builds it, tests it.
+By morning: draft PRs on your desk. He never merges. That's not a limitation bolted on afterward.
+That's just where his shift ends.
+
+*An unattended coding agent workflow. Works with Claude Code and Codex today — the pattern isn't tied to
+either.*
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-5A32FB)](#install)
@@ -12,6 +22,26 @@
 </div>
 
 ---
+
+## Meet the night shift
+
+Deadpan. Dark circles. Hoodie, badge, gas-station coffee. He's been doing this since before you started
+locking your screen before walking away. He doesn't ask what a ticket means when it's ambiguous — there's
+no one to ask at 3am, so he sets it down with a note instead of guessing. He doesn't touch anything above
+his clearance. And when he's done, he doesn't let himself in — he leaves the draft on your desk and waits.
+
+Every part of that isn't flavor text. It's the actual guardrail:
+
+| He | night-run |
+|---|---|
+| clocks in when you clock out | starts attended (you confirm the plan), then runs unattended overnight |
+| works one ticket at a time, in order | sequential by default, topologically sorted |
+| if two jobs would collide, does them one after the other instead | scope-overlap detection auto-downgrades a parallel pair to sequential |
+| never touches anything above his clearance | prod is read-only — any write path blocks the ticket outright, no exceptions |
+| sets an oversized job back down instead of guessing his way through it | a separate reviewer can call `TOO_LARGE` → routed back to you, not forced through |
+| when something doesn't check out, leaves a note instead of a guess | `BLOCKED` with a reason — never filled in with an assumption |
+| drops each finished job off the moment it's done, not at the end of the night | a draft PR opens per ticket immediately — a 3am crash loses nothing |
+| never signs off on his own work | draft-PR-only ceiling — merge is always someone else's call |
 
 ## The problem
 
@@ -61,28 +91,6 @@ real reason instead of a bad guess. That's the whole pitch.
 | Where you land by morning | a branch, maybe, if you're lucky | **draft PRs only** — one per ticket, the moment it's done, so a 3am crash loses nothing |
 | Who decides "ready to merge" | whoever's prompt it was | always a human, always the next morning, no exceptions |
 
-## Design principles
-
-- **Draft-PR-only ceiling.** No matter how trivial a ticket looks, the most this skill ever does is open a
-  draft PR and mark the issue in-progress. Promote-to-ready, merge, and deploy are always a human's call.
-- **A separate judge for every design.** The subagent that writes a design isn't the one that reviews it —
-  a fresh reviewer subagent has to give 2 consecutive PASSes (up to 10 rounds), or call the ticket
-  `TOO_LARGE` and kick it back to you, before implementation ever starts. An agent grading its own homework
-  doesn't count as review.
-- **Prod is read-only. Never write. No exceptions.** A read-only replica read is fine if a ticket genuinely
-  needs it to diagnose something. Any write — direct or via a writable credential/tunnel — blocks the
-  ticket on the spot. That's not a judgment call an unattended run gets to make.
-- **Overlap gets caught twice, not assumed away.** Once from declared scope (before the loop even starts),
-  once more from each design's *actual* touched-file list (before any parallel worktree opens) — because
-  what a ticket's author wrote down and what the ticket actually touches aren't always the same thing.
-  See [Issue #1](../../issues/1) for the failure mode this closes.
-- **Sequential by default, one worktree at a time.** Parallel worktrees running full builds — not
-  worktrees themselves — is what pegs the CPU and creates merge conflicts. So the default is strictly
-  sequential, and even the limited-parallel path never runs more than the ticket's own scoped test per
-  worktree.
-- **A PR the moment a ticket is done, not at the end of the queue.** If the session dies at 3am, everything
-  finished so far already exists as a PR. Nothing is lost to a crash.
-
 ## Install
 
 **Claude Code**: copy [`SKILL.md`](./SKILL.md) into `<your-project>/.claude/skills/night-run/SKILL.md`.
@@ -117,6 +125,10 @@ Each ticket also needs a small structured block in its description (`depends_on`
 See [`SKILL.md`](./SKILL.md) for the exact format.
 
 ## FAQ
+
+**Why anthropomorphize a skill file?** Because every trait maps to a real guardrail, not decoration — see
+the table above. If you'd rather read it as pure mechanics with no character framing, [`SKILL.md`](./SKILL.md)
+is exactly that.
 
 **Isn't this just a prompt?** Yes — that's the point. The value isn't a novel model capability, it's the
 specific set of guardrails an *unattended overnight batch* needs that a one-off "handle this overnight"
