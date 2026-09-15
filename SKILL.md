@@ -19,13 +19,13 @@ description: "An overnight batch skill that processes 4-8 small, mutually indepe
 
 ---
 
-## Safety guardrail -- never touch prod data
+## Safety guardrail -- prod is read-only, never write
 
 night-run runs unattended overnight, so nobody is there to catch a mistake in real time. The following applies to **every issue, with no exceptions**, regardless of its risk label:
 
-- **Implementation and implementation-verification only ever run against local/test environments.** No prod DB, prod cache, or prod external API -- not even reads. If your standard test commands already default to a local/test env, just use them as-is. If a step seems to require opening a prod credential or a prod DB tunnel, **that issue is immediately marked BLOCKED** -- that decision is out of scope for an unattended run.
-- **Backfilling or cleaning up data already sitting in prod is out of scope for night-run**, even if the issue also asks for it. If an issue conflates "fix the code so this doesn't happen going forward" with "clean up prod rows that already exist," split it: implement the former, and report the latter back to a human to handle by hand.
-- This mirrors whatever read-only-replica / no-direct-prod-write discipline your team already has for AI-assisted database work -- night-run just enforces it more strictly because nobody is watching.
+- **Implementation and implementation-verification default to local/test environments.** If your standard test commands already default to a local/test env, just use them as-is. **Read-only** access to a prod read replica is fine when a step genuinely needs it (e.g. confirming a data condition actually occurs in prod as part of diagnosing the issue) -- but only through whatever read-only path your team already has (replica connection, read-only DB role, etc.), never a direct/writable connection. **Any prod *write* -- direct or via a credential/tunnel that permits writes -- is never allowed, under any circumstances.** If a step seems to require prod write access, **that issue is immediately marked BLOCKED** -- that decision is out of scope for an unattended run.
+- **Backfilling or cleaning up data already sitting in prod is out of scope for night-run**, even if the issue also asks for it -- that's a write, however well-intentioned. If an issue conflates "fix the code so this doesn't happen going forward" with "clean up prod rows that already exist," split it: implement the former, and report the latter back to a human to handle by hand.
+- This mirrors whatever read-only-replica / no-direct-prod-write discipline your team already has for AI-assisted database work -- night-run just enforces the write side of it more strictly, because nobody is watching.
 
 ---
 
@@ -243,6 +243,7 @@ Issues with `risk != none` still go through PR creation and tracker status trans
 | v3 | Added the prod-data safety guardrail: implementation and verification only ever run in local/test environments; prod backfills/cleanup are explicitly out of scope and reported to a human separately. (Prompted by a real incident where "fix the code for future cases" got conflated with "backfill data that already accumulated in prod" for the same issue.) |
 | v4 | Added the post-draft-PR tracker status transition step. Transition failures are reported in the morning summary rather than treated as issue failure. |
 | v5 | Raised the design-review cap from 3 to 10 rounds (the "2 consecutive PASSes to lock in" rule is unchanged -- the last two verdicts must still both be PASS). Reviewers are now given a summary of prior rounds' open issues each round. Raised the limited-parallelism cap from 2 to 4 (same `risk:none` / non-overlapping-scope conditions and "scoped command only, no full build per worktree" safeguard apply -- only the parallelism count increased, based on real-world usage). |
+| v6 | Addressed [#3](https://github.com/sehynn/night-run/issues/3): the safety guardrail banned all prod access, even reads, which was stricter than most teams' actual policy (read-only replica fine, writes forbidden) and made routine diagnostic reads get BLOCKED for no safety benefit. Reframed as "prod is read-only, never write" -- read-only replica access is allowed when a step genuinely needs it; any write, direct or via a writable credential/tunnel, stays absolutely forbidden with no exceptions. |
 
 ---
 
@@ -254,4 +255,4 @@ This skill assumes a few things you'll need to map onto your own setup:
 - **Domain implementation subagents/experts** per stack (backend/mobile/frontend, or whatever split makes sense for your codebase) -- night-run delegates design and implementation to these rather than doing it inline.
 - **An existing PR-creation step/skill** that follows your team's branch/commit/PR-template conventions, ideally with `--draft` support.
 - **Your own risk-tier taxonomy** (auth, payment, migration, security/privacy are common defaults) -- night-run just adds one local `infra` tag on top for its own gating purposes.
-- **Whatever prod-safety discipline you already enforce** for AI-assisted work (read-only replicas, no direct prod writes, etc.) -- night-run's guardrail assumes that baseline exists and adds "never even try" on top of it for the unattended case.
+- **Whatever prod-safety discipline you already enforce** for AI-assisted work (read-only replicas, no direct prod writes, etc.) -- night-run's guardrail assumes that baseline exists and makes the no-write side of it non-negotiable, with no risk-label exceptions, for the unattended case.
